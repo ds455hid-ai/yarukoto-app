@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>やること</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "Helvetica Neue", sans-serif;
+      background: #f7f7f5;
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #222;
+      margin-bottom: 20px;
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+
+    .add-area {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 13px 16px;
+      border: 2px solid #e4e4e4;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+      background: white;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #5b8dee;
+    }
+
+    .add-btn {
+      padding: 13px 20px;
+      background: #5b8dee;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .add-btn:active {
+      background: #3a6fd8;
+    }
+
+    .task-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: white;
+      padding: 14px 14px;
+      border-radius: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+      cursor: default;
+      user-select: none;
+      transition: box-shadow 0.15s, opacity 0.15s;
+    }
+
+    .task-item.dragging {
+      opacity: 0.35;
+    }
+
+    .task-item.drag-over {
+      box-shadow: 0 0 0 2px #5b8dee, 0 4px 16px rgba(91,141,238,0.18);
+    }
+
+    .handle {
+      color: #c8c8c8;
+      font-size: 20px;
+      cursor: grab;
+      flex-shrink: 0;
+      touch-action: none;
+      line-height: 1;
+    }
+
+    .check-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid #d4d4d4;
+      background: white;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      transition: all 0.2s;
+      color: white;
+    }
+
+    .task-item.done .check-btn {
+      background: #56c96b;
+      border-color: #56c96b;
+    }
+
+    .task-text {
+      flex: 1;
+      font-size: 16px;
+      color: #222;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .task-item.done .task-text {
+      text-decoration: line-through;
+      color: #b0b0b0;
+    }
+
+    .delete-btn {
+      color: #d4d4d4;
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      flex-shrink: 0;
+      line-height: 1;
+      padding: 0 2px;
+      transition: color 0.2s;
+    }
+
+    .delete-btn:hover, .delete-btn:active {
+      color: #e05555;
+    }
+
+    .empty {
+      text-align: center;
+      color: #c0c0c0;
+      padding: 48px 0;
+      font-size: 15px;
+    }
+
+    .clear-done {
+      display: block;
+      margin: 16px auto 0;
+      background: none;
+      border: 1px solid #ddd;
+      color: #aaa;
+      font-size: 13px;
+      padding: 7px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .clear-done:hover {
+      border-color: #e05555;
+      color: #e05555;
+    }
+
+    .status {
+      text-align: center;
+      font-size: 12px;
+      color: #bbb;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>やること</h1>
+
+  <div class="add-area">
+    <input type="text" id="taskInput" placeholder="やることを入力..." />
+    <button class="add-btn" onclick="addTask()">追加</button>
+  </div>
+
+  <ul class="task-list" id="taskList"></ul>
+  <button class="clear-done" id="clearDoneBtn" onclick="clearDone()" style="display:none">完了済みを削除</button>
+  <div class="status" id="status">接続中...</div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC7w2vOV0X8U1VU5IrdfkEwplFP0Iemajs",
+      authDomain: "yarukoto-13d42.firebaseapp.com",
+      databaseURL: "https://yarukoto-13d42-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "yarukoto-13d42",
+      storageBucket: "yarukoto-13d42.firebasestorage.app",
+      messagingSenderId: "470162486969",
+      appId: "1:470162486969:web:dcdc7d31b22b17c1c1cd68"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const tasksRef = db.ref('tasks');
+
+    let tasks = [];
+    let isDragging = false;
+
+    tasksRef.on('value', (snapshot) => {
+      if (isDragging) return;
+      tasks = snapshot.val() || [];
+      render();
+      document.getElementById('status').textContent = '同期済み ✓';
+    });
+
+    tasksRef.on('cancelled', () => {
+      document.getElementById('status').textContent = '接続エラー';
+    });
+
+    function save() {
+      document.getElementById('status').textContent = '保存中...';
+      tasksRef.set(tasks);
+    }
+
+    function render() {
+      const list = document.getElementById('taskList');
+      const clearBtn = document.getElementById('clearDoneBtn');
+
+      if (tasks.length === 0) {
+        list.innerHTML = '<div class="empty">タスクはありません</div>';
+        clearBtn.style.display = 'none';
+        return;
+      }
+
+      list.innerHTML = '';
+      const hasDone = tasks.some(t => t.done);
+      clearBtn.style.display = hasDone ? 'block' : 'none';
+
+      tasks.forEach((task, i) => {
+        const li = document.createElement('li');
+        li.className = 'task-item' + (task.done ? ' done' : '');
+        li.draggable = true;
+        li.dataset.index = i;
+
+        li.innerHTML = `
+          <span class="handle">⠿</span>
+          <button class="check-btn" onclick="toggleDone(${i})">${task.done ? '✓' : ''}</button>
+          <span class="task-text">${escapeHtml(task.text)}</span>
+          <button class="delete-btn" onclick="deleteTask(${i})">×</button>
+        `;
+
+        li.addEventListener('dragstart', onDragStart);
+        li.addEventListener('dragover', onDragOver);
+        li.addEventListener('drop', onDrop);
+        li.addEventListener('dragend', onDragEnd);
+
+        const handle = li.querySelector('.handle');
+        handle.addEventListener('touchstart', onTouchStart, { passive: false });
+
+        list.appendChild(li);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function addTask() {
+      const input = document.getElementById('taskInput');
+      const text = input.value.trim();
+      if (!text) return;
+      tasks.push({ text, done: false });
+      save();
+      input.value = '';
+      input.focus();
+    }
+
+    function toggleDone(i) {
+      tasks[i].done = !tasks[i].done;
+      save();
+    }
+
+    function deleteTask(i) {
+      tasks.splice(i, 1);
+      save();
+    }
+
+    function clearDone() {
+      tasks = tasks.filter(t => !t.done);
+      save();
+    }
+
+    // --- Desktop drag & drop ---
+    let dragSrc = null;
+
+    function onDragStart(e) {
+      isDragging = true;
+      dragSrc = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over'));
+      this.classList.add('drag-over');
+    }
+
+    function onDrop(e) {
+      e.stopPropagation();
+      if (dragSrc && dragSrc !== this) {
+        const from = parseInt(dragSrc.dataset.index);
+        const to = parseInt(this.dataset.index);
+        const [moved] = tasks.splice(from, 1);
+        tasks.splice(to, 0, moved);
+        save();
+      }
+    }
+
+    function onDragEnd() {
+      isDragging = false;
+      document.querySelectorAll('.task-item').forEach(el => {
+        el.classList.remove('dragging', 'drag-over');
+      });
+      dragSrc = null;
+    }
+
+    // --- Mobile touch drag ---
+    let touchItem = null;
+    let touchClone = null;
+
+    function onTouchStart(e) {
+      e.preventDefault();
+      isDragging = true;
+      touchItem = this.closest('.task-item');
+
+      const rect = touchItem.getBoundingClientRect();
+      touchClone = touchItem.cloneNode(true);
+      touchClone.style.cssText = `
+        position: fixed;
+        left: ${rect.left}px;
+        top: ${rect.top}px;
+        width: ${rect.width}px;
+        opacity: 0.85;
+        pointer-events: none;
+        z-index: 9999;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+        border-radius: 14px;
+        transition: none;
+      `;
+      document.body.appendChild(touchClone);
+      touchItem.classList.add('dragging');
+
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    }
+
+    function onTouchMove(e) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      touchClone.style.top = (touch.clientY - 28) + 'px';
+
+      document.querySelectorAll('.task-item:not(.dragging)').forEach(el => el.classList.remove('drag-over'));
+      touchClone.style.display = 'none';
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      touchClone.style.display = '';
+      const target = el?.closest('.task-item');
+      if (target && target !== touchItem) {
+        target.classList.add('drag-over');
+      }
+    }
+
+    function onTouchEnd(e) {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+
+      if (touchClone) {
+        const touch = e.changedTouches[0];
+        touchClone.style.display = 'none';
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const target = el?.closest('.task-item');
+
+        if (target && target !== touchItem) {
+          const from = parseInt(touchItem.dataset.index);
+          const to = parseInt(target.dataset.index);
+          const [moved] = tasks.splice(from, 1);
+          tasks.splice(to, 0, moved);
+          save();
+        }
+
+        touchClone.remove();
+        touchClone = null;
+      }
+
+      touchItem?.classList.remove('dragging');
+      touchItem = null;
+      isDragging = false;
+      document.querySelectorAll('.task-item').forEach(el => el.classList.remove('drag-over', 'dragging'));
+    }
+
+    document.getElementById('taskInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addTask();
+    });
+  </script>
+</body>
+</html>
