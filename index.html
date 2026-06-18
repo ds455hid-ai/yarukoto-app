@@ -20,15 +20,28 @@
       font-size: 22px;
       font-weight: 700;
       color: #222;
-      margin-bottom: 20px;
+      margin-bottom: 4px;
       text-align: center;
       letter-spacing: 0.05em;
     }
 
+    .today {
+      text-align: center;
+      font-size: 13px;
+      color: #999;
+      margin-bottom: 20px;
+    }
+
     .add-area {
       display: flex;
+      flex-direction: column;
       gap: 8px;
       margin-bottom: 20px;
+    }
+
+    .add-row {
+      display: flex;
+      gap: 8px;
     }
 
     input[type="text"] {
@@ -43,6 +56,36 @@
     }
 
     input[type="text"]:focus {
+      border-color: #5b8dee;
+    }
+
+    .due-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 2px;
+    }
+
+    .due-label {
+      font-size: 13px;
+      color: #aaa;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    input[type="date"] {
+      flex: 1;
+      padding: 8px 12px;
+      border: 2px solid #e4e4e4;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      background: white;
+      color: #444;
+      transition: border-color 0.2s;
+    }
+
+    input[type="date"]:focus {
       border-color: #5b8dee;
     }
 
@@ -73,7 +116,7 @@
     .task-item {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       background: white;
       padding: 14px 14px;
       border-radius: 14px;
@@ -83,9 +126,7 @@
       transition: box-shadow 0.15s, opacity 0.15s;
     }
 
-    .task-item.dragging {
-      opacity: 0.35;
-    }
+    .task-item.dragging { opacity: 0.35; }
 
     .task-item.drag-over {
       box-shadow: 0 0 0 2px #5b8dee, 0 4px 16px rgba(91,141,238,0.18);
@@ -121,8 +162,12 @@
       border-color: #56c96b;
     }
 
-    .task-text {
+    .task-main {
       flex: 1;
+      min-width: 0;
+    }
+
+    .task-text {
       font-size: 16px;
       color: #222;
       line-height: 1.4;
@@ -132,6 +177,40 @@
     .task-item.done .task-text {
       text-decoration: line-through;
       color: #b0b0b0;
+    }
+
+    .task-item.done .due-badge {
+      opacity: 0.4;
+    }
+
+    .due-badge {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .due-badge.overdue {
+      background: #fde8e8;
+      color: #d63c3c;
+    }
+
+    .due-badge.today {
+      background: #fff0e0;
+      color: #e07b00;
+    }
+
+    .due-badge.soon {
+      background: #fff8e0;
+      color: #b08000;
+    }
+
+    .due-badge.future {
+      background: #eef3fd;
+      color: #5b8dee;
     }
 
     .delete-btn {
@@ -146,9 +225,7 @@
       transition: color 0.2s;
     }
 
-    .delete-btn:hover, .delete-btn:active {
-      color: #e05555;
-    }
+    .delete-btn:hover, .delete-btn:active { color: #e05555; }
 
     .empty {
       text-align: center;
@@ -170,10 +247,7 @@
       transition: all 0.15s;
     }
 
-    .clear-done:hover {
-      border-color: #e05555;
-      color: #e05555;
-    }
+    .clear-done:hover { border-color: #e05555; color: #e05555; }
 
     .status {
       text-align: center;
@@ -186,10 +260,17 @@
 <body>
 
   <h1>やること</h1>
+  <div class="today" id="todayLabel"></div>
 
   <div class="add-area">
-    <input type="text" id="taskInput" placeholder="やることを入力..." />
-    <button class="add-btn" onclick="addTask()">追加</button>
+    <div class="add-row">
+      <input type="text" id="taskInput" placeholder="やることを入力..." />
+      <button class="add-btn" onclick="addTask()">追加</button>
+    </div>
+    <div class="due-row">
+      <span class="due-label">期限（任意）</span>
+      <input type="date" id="dueInput" />
+    </div>
   </div>
 
   <ul class="task-list" id="taskList"></ul>
@@ -213,6 +294,31 @@
 
     let tasks = [];
     let isDragging = false;
+
+    // Today's date display
+    (function() {
+      const d = new Date();
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      document.getElementById('todayLabel').textContent =
+        `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）`;
+    })();
+
+    function daysLeft(dueStr) {
+      if (!dueStr) return null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = new Date(dueStr + 'T00:00:00');
+      return Math.round((due - today) / 86400000);
+    }
+
+    function dueBadgeHtml(dueStr) {
+      const diff = daysLeft(dueStr);
+      if (diff === null) return '';
+      if (diff < 0)  return `<span class="due-badge overdue">${Math.abs(diff)}日超過</span>`;
+      if (diff === 0) return `<span class="due-badge today">今日まで</span>`;
+      if (diff <= 3) return `<span class="due-badge soon">あと${diff}日</span>`;
+      return `<span class="due-badge future">あと${diff}日</span>`;
+    }
 
     tasksRef.on('value', (snapshot) => {
       if (isDragging) return;
@@ -241,8 +347,7 @@
       }
 
       list.innerHTML = '';
-      const hasDone = tasks.some(t => t.done);
-      clearBtn.style.display = hasDone ? 'block' : 'none';
+      clearBtn.style.display = tasks.some(t => t.done) ? 'block' : 'none';
 
       tasks.forEach((task, i) => {
         const li = document.createElement('li');
@@ -253,7 +358,10 @@
         li.innerHTML = `
           <span class="handle">⠿</span>
           <button class="check-btn" onclick="toggleDone(${i})">${task.done ? '✓' : ''}</button>
-          <span class="task-text">${escapeHtml(task.text)}</span>
+          <div class="task-main">
+            <div class="task-text">${escapeHtml(task.text)}</div>
+            ${dueBadgeHtml(task.due)}
+          </div>
           <button class="delete-btn" onclick="deleteTask(${i})">×</button>
         `;
 
@@ -262,8 +370,7 @@
         li.addEventListener('drop', onDrop);
         li.addEventListener('dragend', onDragEnd);
 
-        const handle = li.querySelector('.handle');
-        handle.addEventListener('touchstart', onTouchStart, { passive: false });
+        li.querySelector('.handle').addEventListener('touchstart', onTouchStart, { passive: false });
 
         list.appendChild(li);
       });
@@ -275,11 +382,13 @@
 
     function addTask() {
       const input = document.getElementById('taskInput');
+      const due = document.getElementById('dueInput');
       const text = input.value.trim();
       if (!text) return;
-      tasks.push({ text, done: false });
+      tasks.push({ text, done: false, due: due.value || null });
       save();
       input.value = '';
+      due.value = '';
       input.focus();
     }
 
@@ -328,9 +437,7 @@
 
     function onDragEnd() {
       isDragging = false;
-      document.querySelectorAll('.task-item').forEach(el => {
-        el.classList.remove('dragging', 'drag-over');
-      });
+      document.querySelectorAll('.task-item').forEach(el => el.classList.remove('dragging', 'drag-over'));
       dragSrc = null;
     }
 
@@ -374,9 +481,7 @@
       const el = document.elementFromPoint(touch.clientX, touch.clientY);
       touchClone.style.display = '';
       const target = el?.closest('.task-item');
-      if (target && target !== touchItem) {
-        target.classList.add('drag-over');
-      }
+      if (target && target !== touchItem) target.classList.add('drag-over');
     }
 
     function onTouchEnd(e) {
