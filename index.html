@@ -191,27 +191,67 @@
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.03em;
+      cursor: pointer;
     }
 
-    .due-badge.overdue {
-      background: #fde8e8;
-      color: #d63c3c;
+    .due-badge.overdue  { background: #fde8e8; color: #d63c3c; }
+    .due-badge.today    { background: #fff0e0; color: #e07b00; }
+    .due-badge.soon     { background: #fff8e0; color: #b08000; }
+    .due-badge.future   { background: #eef3fd; color: #5b8dee; }
+
+    .add-due-link {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 12px;
+      color: #ccc;
+      cursor: pointer;
     }
 
-    .due-badge.today {
-      background: #fff0e0;
-      color: #e07b00;
+    .add-due-link:active { color: #5b8dee; }
+
+    .due-editor {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
     }
 
-    .due-badge.soon {
-      background: #fff8e0;
-      color: #b08000;
+    .due-editor input[type="date"] {
+      padding: 5px 10px;
+      border: 2px solid #5b8dee;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      background: white;
+      color: #333;
+      flex-shrink: 0;
     }
 
-    .due-badge.future {
-      background: #eef3fd;
-      color: #5b8dee;
+    .due-editor .btn-nondue {
+      padding: 5px 10px;
+      background: none;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #aaa;
+      cursor: pointer;
+      white-space: nowrap;
     }
+
+    .due-editor .btn-nondue:active { border-color: #e05555; color: #e05555; }
+
+    .due-editor .btn-cancel {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #ccc;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 2px;
+    }
+
+    .due-editor .btn-cancel:active { color: #999; }
 
     .delete-btn {
       color: #d4d4d4;
@@ -294,6 +334,7 @@
 
     let tasks = [];
     let isDragging = false;
+    let editingDueIndex = -1;
 
     // Today's date display
     (function() {
@@ -320,9 +361,37 @@
       return `<span class="due-badge future">あと${diff}日</span>`;
     }
 
+    function startEditDue(i) {
+      editingDueIndex = i;
+      render();
+      setTimeout(() => {
+        const input = document.getElementById('due-edit-' + i);
+        if (input) input.focus();
+      }, 30);
+    }
+
+    function saveDue(i) {
+      const input = document.getElementById('due-edit-' + i);
+      if (input) tasks[i].due = input.value || null;
+      editingDueIndex = -1;
+      save();
+    }
+
+    function clearDue(i) {
+      tasks[i].due = null;
+      editingDueIndex = -1;
+      save();
+    }
+
+    function cancelEditDue() {
+      editingDueIndex = -1;
+      render();
+    }
+
     tasksRef.on('value', (snapshot) => {
       if (isDragging) return;
       tasks = snapshot.val() || [];
+      editingDueIndex = -1;
       render();
       document.getElementById('status').textContent = '同期済み ✓';
     });
@@ -355,12 +424,26 @@
         li.draggable = true;
         li.dataset.index = i;
 
+        let dueSection = '';
+        if (editingDueIndex === i) {
+          dueSection = `
+            <div class="due-editor">
+              <input type="date" id="due-edit-${i}" value="${task.due || ''}" onchange="saveDue(${i})" />
+              <button class="btn-nondue" onclick="clearDue(${i})">期限なし</button>
+              <button class="btn-cancel" onclick="cancelEditDue()">×</button>
+            </div>`;
+        } else if (task.due) {
+          dueSection = `<div onclick="startEditDue(${i})" style="display:inline-block">${dueBadgeHtml(task.due)}</div>`;
+        } else {
+          dueSection = `<span class="add-due-link" onclick="startEditDue(${i})">＋ 期限を追加</span>`;
+        }
+
         li.innerHTML = `
           <span class="handle">⠿</span>
           <button class="check-btn" onclick="toggleDone(${i})">${task.done ? '✓' : ''}</button>
           <div class="task-main">
             <div class="task-text">${escapeHtml(task.text)}</div>
-            ${dueBadgeHtml(task.due)}
+            ${dueSection}
           </div>
           <button class="delete-btn" onclick="deleteTask(${i})">×</button>
         `;
